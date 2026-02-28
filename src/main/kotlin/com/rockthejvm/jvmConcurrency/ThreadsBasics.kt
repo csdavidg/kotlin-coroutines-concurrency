@@ -1,5 +1,6 @@
 package com.rockthejvm.jvmConcurrency
 
+import kotlinx.coroutines.Runnable
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -7,95 +8,120 @@ import kotlin.concurrent.thread
 
 object ThreadsBasics {
 
-    // Thread = independent unit of execution
+    // Thread = Independent Unit of execution
 
-    // Thread = data structure (maps to OS threads)
-    // Runnable = piece of code to run
+    // JVM Thread = Data structure maps to OS threads
+    // Runnable is a piece of code to run
 
     val takingTheBus = Runnable {
-        println("Getting in the bus")
-        (0..10).forEach {
+        println("Taking the bus")
+        (0 .. 10).forEach {
             println("${it * 10}% done")
             Thread.sleep(300)
         }
-        println("Getting off the bus, I'm done!")
+        println("Getting off the bus, I'm done")
     }
 
     fun runThread() {
         val thread = Thread(takingTheBus)
-        // thread is just "data"
-        thread.start() // the code runs independently
+        // Thread is just "data"
+        thread.start() // The thread won't be executed until i call start() method. Here the code runs independently
     }
 
     fun runMultipleThreads() {
-        val takingBus = Thread(takingTheBus)
-        val listeningToPodcast = thread(start = false) { // same as Thread(Runnable { ... })
-            println("Personal development")
+        val takingTheBus = Thread(takingTheBus)
+        // These three options are equivalent thread {} Thread {} and Thread(Runnable {})
+        /*
+         thread {} is a kotlin function which has some parameters.
+         @Param start parameter is set as true by default and
+         when you don't explicitly specify it as false you won't need the
+         listeningToPodcast.start() call
+         */
+        val listeningToPodcast = thread(start = false) { // Kotlin style
+            println("Personal Development")
             Thread.sleep(2000)
-            println("I'm a new person now!")
-        } // also starts the thread!
-
-        // start the threads
-        takingBus.start()
-        listeningToPodcast.start() // exception if you start a thread multiple times
-
-        // join threads = block until they finish
-        takingBus.join()
-        listeningToPodcast.join()
+            println("I'm a new person now")
+        }
+        takingTheBus.start()
+        /*
+         if you call this with thread {} kotlin style the thread is started multiple times
+         and an exception is thrown
+         IllegalThreadStateException
+         */
+        listeningToPodcast.start()
     }
 
-    // interruption
-    val scrollingSM = thread(start = false) {
-        while(true) {
+    val threadInterrupt = thread(start = false) {
+        while (true) {
             try {
-                println("Scrolling my SM")
                 Thread.sleep(1000)
-            } catch (e: InterruptedException) {
-                println("Oh, I've scrolled too much, time to stop!")
-                return@thread // non-local return
+                println("Scrolling Social Media")
+            }catch (e: InterruptedException) { // Handling exception to avoid thread crash and gracefully stop the loop
+                println("Too much scrolling time to stop")
+                return@thread // non-local return - braking while loop
             }
+
         }
     }
 
-    fun demoInterruption() {
-        scrollingSM.start()
-        // block it after 5s
-        Thread.sleep(5000)
-        scrollingSM.interrupt() // throws InterruptedException on that thread = crashing the thread
-        scrollingSM.join()
-    }
-
-    // executors
-    fun demoExecutorsFutures() {
-        // thread pool
+    // Executors
+    fun demoExecutors() {
+        /** A thread pool manages the lifecycle threads for you
+         * Reserved/Dynamic amount of threads waiting for a task to execute and complete and then
+         * waits for the next task. If all threads are busy, incoming tasks are typically queued until a
+         * thread becomes available.
+         * Creating threads is resource expensive.
+         * The thread pool creates and reserve those threads to avoid the expensive task of creating a new one every time it's needed
+         * The thread pool could be dynamic and create new threads based on the load
+          */
         val executor = Executors.newFixedThreadPool(8)
-        // send tasks to one of the threads
+
+        // Sending tasks to the executor which takes one thread from the pool to run it
         executor.submit {
-            for (i in (1..100)) {
+            for (i in (1 .. 10)) {
                 println("Counting to $i")
                 Thread.sleep(100)
             }
         }
 
-        // make a thread return a value = Future
+        // Futures make a thread return a value
         val future: Future<Int> = executor.submit(
-            Callable { // this will be run on one of the threads
-                println("Computing the meaning of life")
+            Callable {
+                println("Computing something")
                 Thread.sleep(3000)
                 42
             }
         )
 
-        println("The meaning of life is ${future.get()}") // get() blocks the calling thread until the future is done
-        // similar to join() on the thread
+        // get() blocks the calling thread until the future returns
+        println("Meaning of life is ${future.get()}")
 
-        // shut down an Executor -> call it explicitly
-        executor.shutdown() // wait for all tasks to be done, no new tasks may be submitted
+        /**
+         * With this approach you must shut down the executor explicitly
+         * otherwise the app keeps running forever since it waits for all the
+         * threads to finish.
+         * shutdown() waits for all task to be done and no new tasks must be submitted
+         */
+        executor.shutdown()
     }
+
 
     @JvmStatic
     fun main(args: Array<String>) {
-        // main thread
-        demoExecutorsFutures()
+        // Here we are running on the MAIN thread
+        //takingTheBus.run() // Calling this still runs in the main thread
+
+        /*runThread()// This method runs in another thread
+        Thread.sleep(1000)
+        println("Hello from the main thread")*/
+
+        // runMultipleThreads() // All the details are in the method
+        /*threadInterrupt.start()
+        Thread.sleep(5000)
+        threadInterrupt.interrupt() // This throws an InterruptedException on that thread    - Crashing the thread
+        threadInterrupt.join() // Waits for the thread to finish
+        */
+
+        demoExecutors()
     }
 }
